@@ -496,7 +496,7 @@ CREATE TABLE `details` (
 
 function epoch2iso () {
     if ($GLOBALS['_xhprof']['dbtype'] === 'sqlite') {
-        return " datetime(?, 'unixepoch')";
+        return " datetime(?, 'unixepoch', 'localtime')";
     } else {
         return " FROM_UNIXTIME(?)"; 
     }
