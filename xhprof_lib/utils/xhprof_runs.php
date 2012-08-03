@@ -430,11 +430,12 @@ CREATE TABLE `details` (
 
 		// The value of 2 seems to be light enugh that we're not killing the server, but still gives us lots of breathing room on 
 		// full production code. 
-		if (!isset($GLOBALS['_xhprof']['serializer']) || strtolower($GLOBALS['_xhprof']['serializer'] == 'php')) {
-			$sql['data'] = $this->db->escape(gzcompress(serialize($xhprof_data), 2));
+        if (!isset($GLOBALS['_xhprof']['serializer']) || strtolower($GLOBALS['_xhprof']['serializer'] == 'php')) {
+			$sql['data'] = gzcompress(serialize($xhprof_data), 2);
 		} else {
-			$sql['data'] = $this->db->escape(gzcompress(json_encode($xhprof_data), 2));
-		}
+			$sql['data'] = gzcompress(json_encode($xhprof_data), 2);
+        }
+
 			
         
 	$url   = isset($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : $_SERVER['PHP_SELF'];
@@ -448,14 +449,36 @@ CREATE TABLE `details` (
 	$sql['server_id'] = $this->db->escape($_xhprof['servername']);
         $sql['aggregateCalls_include'] = getenv('xhprof_aggregateCalls_include') ? getenv('xhprof_aggregateCalls_include') : '';
         
-        $query = "INSERT INTO `details` (`id`, `url`, `c_url`, `timestamp`, `server name`, `perfdata`, `type`, `cookie`, `post`, `get`, `pmu`, `wt`, `cpu`, `server_id`, `aggregateCalls_include`) VALUES('$run_id', '{$sql['url']}', '{$sql['c_url']}', FROM_UNIXTIME('{$sql['timestamp']}'), '{$sql['servername']}', '{$sql['data']}', '{$sql['type']}', '{$sql['cookie']}', '{$sql['post']}', '{$sql['get']}', '{$sql['pmu']}', '{$sql['wt']}', '{$sql['cpu']}', '{$sql['server_id']}', '{$sql['aggregateCalls_include']}')";
-        
-        $this->db->query($query);
-        if ($this->db->affectedRows($this->db->linkID) == 1)
-        {
+     /*   if($GLOBALS['_xhprof']['dbtype'] == 'sqlite') {
+            $sql['data'] = '%' . implode('%',array_map('dechex', array_map('ord', str_split($sql['data']))));
+     } */
+
+        $query = "INSERT INTO `details` (`id`, `url`, `c_url`, `timestamp`, `server name`, `perfdata`, `type`, `cookie`, `post`, `get`, `pmu`, `wt`, `cpu`, `server_id`, `aggregateCalls_include`) VALUES";
+        $params = array(
+            $run_id,
+            $sql['url'],
+            $sql['c_url'],
+            $sql['timestamp'],
+            $sql['servername'],
+            $sql['data'],
+            $sql['type'],
+            $sql['cookie'],
+            $sql['post'],
+            $sql['get'],
+            $sql['pmu'],
+            $sql['wt'],
+            $sql['cpu'],
+            $sql['server_id'],
+            $sql['aggregateCalls_include']);
+
+        $vals = array_pad(array(), count($params), '?');
+        $vals[3] = epoch2iso();
+        $query .= ' (' . implode(',', $vals) . ')';
+
+        $stmt = $this->db->getConnectionObj()->prepare($query);
+        if($stmt->execute($params) === true) {
             return $run_id;
-        }else
-        {
+        } else {
             global $_xhprof;
             if ($_xhprof['display'] === true)
             {
@@ -467,4 +490,14 @@ CREATE TABLE `details` (
   
   
 
+}
+
+
+
+function epoch2iso () {
+    if ($GLOBALS['_xhprof']['dbtype'] === 'sqlite') {
+        return " datetime(?, 'unixepoch')";
+    } else {
+        return " FROM_UNIXTIME(?)"; 
+    }
 }
